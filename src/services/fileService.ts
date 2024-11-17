@@ -1,17 +1,17 @@
-import { PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
-import { s3Client } from '../config/aws';
+import { UploadApiResponse } from 'cloudinary';
+import { cloudinary, APP_FOLDER, getSignedUrl } from '../config/cloudinary';
 import { AppError } from '../utils/AppError';
 import logger from '../utils/logger';
 import sharp from 'sharp';
-import crypto from 'crypto';
 
-const BUCKET_NAME = process.env.AWS_S3_BUCKET_NAME;
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
-if (!BUCKET_NAME) {
-  throw new AppError('AWS S3 bucket name not configured', 500);
-}
+type UploadOptions = {
+  folder: string;
+  identifier: string;
+  accessMode?: 'public' | 'private';
+};
 
 export const fileService = {
   async processImage(file: Express.Multer.File): Promise<Buffer> {
@@ -37,35 +37,81 @@ export const fileService = {
     }
   },
 
-  async uploadProfilePicture(userIdentifier: string, file: Express.Multer.File): Promise<string> {
+  async uploadFile(
+    file: Express.Multer.File,
+    options: UploadOptions
+  ): Promise<{ url: string; publicId: string }> {
     try {
       const processedImage = await this.processImage(file);
-      const fileHash = crypto.createHash('md5').update(Date.now().toString()).digest('hex');
-      const fileName = `profile-pictures/${userIdentifier}/${fileHash}.jpg`;
+      const base64Image = processedImage.toString('base64');
+      const uploadStr = `data:${file.mimetype};base64,${base64Image}`;
 
-      await s3Client.send(new PutObjectCommand({
-        Bucket: BUCKET_NAME,
-        Key: fileName,
-        Body: processedImage,
-        ContentType: 'image/jpeg',
-        ACL: 'public-read',
-        ServerSideEncryption: 'AES256'
-      }));
+      // Construct the full folder path
+      const folderPath = `${APP_FOLDER}/${options.folder}`;
 
-      return `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`;
+      // Upload to Cloudinary
+      const result: UploadApiResponse = await cloudinary.uploader.upload(uploadStr, {
+        folder: folderPath,
+        public_id: `${options.identifier}_${Date.now()}`,
+        overwrite: true,
+        resource_type: 'image',
+        //type: options.accessMode === 'private' ? 'private' : 'upload',
+        type: 'private',
+        access_mode: options.accessMode === 'private' ? 'authenticated' : 'public',
+        transformation: [
+          { quality: 'auto:good' },
+          { fetch_format: 'auto' }
+        ]
+      });
+
+      // For private images, generate a signed URL
+      const url = options.accessMode === 'private' 
+        ? getSignedUrl(result.public_id)
+        : result.secure_url;
+
+      return {
+        url,
+        publicId: result.public_id
+      };
+    } catch (error) {
+      logger.error('Error uploading file:', error);
+      throw new AppError('Failed to upload file', 500);
+    }
+  },
+
+  async uploadProfilePicture(userIdentifier: string, file: Express.Multer.File): Promise<{ url: string; publicId: string }> {
+    try {
+      return await this.uploadFile(file, {
+        folder: 'profile-pictures',
+        identifier: userIdentifier,
+        accessMode: 'private'
+      });
     } catch (error) {
       logger.error('Error uploading profile picture:', error);
       throw new AppError('Failed to upload profile picture', 500);
     }
   },
 
+  async deleteFile(publicId: string): Promise<void> {
+    try {
+      await cloudinary.uploader.destroy(publicId);
+    } catch (error) {
+      logger.error('Error deleting file:', error);
+      throw new AppError('Failed to delete file', 500);
+    }
+  },
+
   async deleteProfilePicture(fileUrl: string): Promise<void> {
     try {
-      const key = new URL(fileUrl).pathname.slice(1);
-      await s3Client.send(new DeleteObjectCommand({
-        Bucket: BUCKET_NAME,
-        Key: key
-      }));
+      // Extract public_id from Cloudinary URL
+      const urlParts = fileUrl.split('/');
+      const publicIdIndex = urlParts.indexOf(APP_FOLDER);
+      if (publicIdIndex === -1) {
+        throw new AppError('Invalid file URL', 400);
+      }
+      
+      const publicId = urlParts.slice(publicIdIndex).join('/').split('?')[0]; // Remove query parameters
+      await this.deleteFile(publicId);
     } catch (error) {
       logger.error('Error deleting profile picture:', error);
       throw new AppError('Failed to delete profile picture', 500);

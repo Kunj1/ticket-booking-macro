@@ -44,10 +44,10 @@ export const validateRegistration = Joi.object({
   role: Joi.string().valid('user', 'admin').default('user').optional(),
   eventManager: Joi.boolean().default(false).optional(),
   performer: Joi.boolean().default(false).optional(),
-  username: Joi.string().min(3).max(30).optional(),
+  username: Joi.string().min(3).max(30).required(),
   bio: Joi.string().max(500).optional().allow(null, ''),
   socialMediaLinks: Joi.array().items(Joi.string().uri()).optional(),
-  profilePicture: Joi.string().uri().optional()
+  profilePicture: Joi.string().uri().optional().allow(null, '')
 });
 
 export const validateLogin = Joi.object({

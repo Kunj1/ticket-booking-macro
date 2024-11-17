@@ -15,6 +15,10 @@ const loginLimiter = rateLimit({
 
 export const authController = {
   async register(req: Request, res: Response, next: NextFunction) {
+    // Declare variables outside try block to make them accessible in catch block
+    let profilePictureUrl: string | undefined;
+    let profilePicturePublicId: string | undefined;
+    
     try {
       const { error } = validateRegistration.validate(req.body);
       if (error) {
@@ -25,16 +29,18 @@ export const authController = {
       }
 
       // Handle profile picture upload if present
-      let profilePictureUrl: string | undefined;
       if (req.file) {
-        profilePictureUrl = await fileService.uploadProfilePicture(req.body.email, req.file);
+        const uploadResult = await fileService.uploadProfilePicture(req.body.email, req.file);
+        profilePictureUrl = uploadResult.url;
+        profilePicturePublicId = uploadResult.publicId;
       }
 
       // Register user with profile picture URL if uploaded
       const user = await authService.register({
         ...req.body,
         profilePicture: profilePictureUrl,
-        username: req.body.username || req.body.email.split('@')[0] // Default username if not provided
+        profilePictureId: profilePicturePublicId, // Store the public ID for future reference
+        username: req.body.username || req.body.email.split('@')[0]
       });
 
       res.status(201).json({ 
@@ -43,10 +49,12 @@ export const authController = {
         profilePicture: user.profilePicture
       });
     } catch (error: unknown) {
-      // If there's an error and a file was uploaded, attempt to clean it up
+      // If there's an error and a profile picture was uploaded, attempt to clean it up
       if (req.file && (error instanceof AppError)) {
         try {
-          await fileService.deleteProfilePicture(req.file.filename);
+          if (profilePicturePublicId) {
+            await fileService.deleteFile(profilePicturePublicId);
+          }
         } catch (deleteError) {
           // Log deletion error but don't throw it to client
           logger.error('Failed to cleanup uploaded file:', deleteError);
@@ -57,8 +65,8 @@ export const authController = {
           return res.status(error.statusCode).json({ message: error.message });
       }
       next(new AppError('Internal Server Error', 500));
-  }
-},
+    }
+  },
 
   async login(req: Request, res: Response, next: NextFunction) {
     loginLimiter(req, res, async (err: any) => {

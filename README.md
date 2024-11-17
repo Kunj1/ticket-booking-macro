@@ -24,3 +24,12 @@ auth routes done.
 update: 17th 3:30pm
 aws files integrated- api keys missing - might need to switch to cloudinary
 4 new items in the user model implemented and working properly.
+
+
+update: 6:30pm
+***The signed URLs will expire after the specified time (1 hour by default). You might want to implement URL refresh logic in your frontend***
+this is for the cloudinary private uploads.
+
+update: 7pm
+cloudinary working.
+can't sent social media links in form data. so had to skip that in latest test (but it has been tested earlier)

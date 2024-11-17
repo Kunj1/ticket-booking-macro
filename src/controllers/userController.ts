@@ -8,7 +8,7 @@ export const userController = {
     try {
       const userId = req.user?.id;
       if (!userId) {
-        throw new AppError('User not authenticated', 401);
+        next(new AppError('User not authenticated', 401));
       }
       const user = await userService.getUserProfile(userId);
       res.json(user);
@@ -25,11 +25,11 @@ export const userController = {
     try {
       const userId = req.user?.id;
       if (!userId) {
-        throw new AppError('User not authenticated', 401);
+        next(new AppError('User not authenticated', 401));
       }
       const { error, value } = validateUser.validate(req.body);
       if (error) {
-        throw new AppError(error.details[0].message, 400);
+        next(new AppError(error.details[0].message, 400));
       }
       const updatedUser = await userService.updateUserProfile(userId, value);
       res.json(updatedUser);
@@ -46,11 +46,11 @@ export const userController = {
     try {
       const userId = req.user?.id;
       if (!userId) {
-        throw new AppError('User not authenticated', 401);
+        next( new AppError('User not authenticated', 401));
       }
       const { error, value } = validatePasswordChange.validate(req.body);
       if (error) {
-        throw new AppError(error.details[0].message, 400);
+        next( new AppError(error.details[0].message, 400));
       }
       await userService.updatePassword(userId, value.oldPassword, value.newPassword);
       res.status(200).json({ message: 'Password updated successfully' });
@@ -73,7 +73,7 @@ export const userController = {
     try {
       const userId = req.user?.id;
       if (!userId) {
-        throw new AppError('User not authenticated', 401);
+        next( new AppError('User not authenticated', 401));
       }
       await userService.deleteUser(userId);
       res.status(204).send();

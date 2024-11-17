@@ -7,7 +7,7 @@ import { configureRoutes } from './routes';
 import { errorHandler } from './middlewares/errorHandler';
 import { AppDataSource } from './config/database';
 import { notificationService } from './services/notificationService';
-import { s3Client } from './config/aws';
+import { testCloudinaryConnection } from './config/cloudinary';
 import logger from './utils/logger';
 
 const app = express();
@@ -18,24 +18,20 @@ app.use(cors({
   credentials: true
 }));
 
-app.use(helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" } // Allow images from S3
-}));
-
+app.use(helmet());
 app.use(morgan('combined'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Health check endpoint
 app.get('/health', async (req, res) => {
-  let s3Status = 'unknown'; // Declare the variable outside try/catch
+  let cloudinaryStatus = 'unknown';
   try {
-    // Test S3 connection
-    await s3Client.config.credentials();
-    s3Status = 'connected';
+    await testCloudinaryConnection();
+    cloudinaryStatus = 'connected';
   } catch (error) {
-    logger.error('S3 connection test failed:', error);
-    s3Status = 'error';
+    logger.error('Cloudinary connection test failed:', error);
+    cloudinaryStatus = 'error';
   }
 
   res.status(200).json({ 
@@ -44,7 +40,7 @@ app.get('/health', async (req, res) => {
     services: {
       database: AppDataSource.isInitialized,
       notification: notificationService.isInitialized(),
-      s3: s3Status
+      cloudinary: cloudinaryStatus
     }
   });
 });
@@ -60,10 +56,9 @@ async function initializeServices() {
   try {
     // Verify environment variables
     const requiredEnvVars = [
-      'AWS_REGION',
-      'AWS_ACCESS_KEY_ID',
-      'AWS_SECRET_ACCESS_KEY',
-      'AWS_S3_BUCKET_NAME'
+      'CLOUDINARY_CLOUD_NAME',
+      'CLOUDINARY_API_KEY',
+      'CLOUDINARY_API_SECRET'
     ];
 
     const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
@@ -71,18 +66,9 @@ async function initializeServices() {
       throw new Error(`Missing required environment variables: ${missingEnvVars.join(', ')}`);
     }
 
-    // Test S3 connection
-    try {
-      await s3Client.config.credentials();
-      logger.info('AWS S3 connection verified successfully');
-    } catch (error: unknown) {
-      // Type guard to check if error is an Error object
-      if (error instanceof Error) {
-        throw new Error(`Failed to connect to AWS S3: ${error.message}`);
-      } else {
-        throw new Error('Failed to connect to AWS S3: Unknown error');
-      }
-    }
+    // Test Cloudinary connection
+    await testCloudinaryConnection();
+    logger.info('Cloudinary connection verified successfully');
 
     // Connect to database
     await AppDataSource.initialize();

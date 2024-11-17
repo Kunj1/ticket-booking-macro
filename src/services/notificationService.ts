@@ -255,6 +255,20 @@ export class NotificationService {
             <p><strong>Syntalix</strong></p>
           `
         };
+        case 'account_update':
+        return {
+          subject: 'MACRO Account Update Notification',
+          text: `Dear ${data.name}, your account ${data.updateType} was recently updated on ${new Date(data.timestamp).toLocaleString()}.`,
+          html: `
+            <h2>Account Update Notification</h2>
+            <p>Dear ${data.name},</p>
+            <p>This email is to confirm that your account ${data.updateType} was recently updated on ${new Date(data.timestamp).toLocaleString()}.</p>
+            <p>If you did not make this change, please contact our support team immediately.</p>
+            <br>
+            <p>Best regards,</p>
+            <p>The MACRO Team</p>
+            `
+        };
       default:
         throw new AppError(`Email template '${template}' not found`, 400);
     }

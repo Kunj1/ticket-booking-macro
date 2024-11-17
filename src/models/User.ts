@@ -1,5 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
-import { IsEmail, IsNotEmpty, MinLength, IsOptional, IsBoolean, IsIn } from 'class-validator';
+import { IsEmail, IsNotEmpty, MinLength, MaxLength, IsOptional, IsBoolean, IsIn, IsUrl } from 'class-validator';
 
 // Define the safe user type without password
 export type SafeUser = Omit<User, 'password' | 'toJSON'> & {
@@ -63,10 +63,16 @@ export class User {
 
   @Column({ type: 'text', nullable: true })
   @IsOptional()
+  @IsUrl()
   profilePicture?: string;
+
+  @Column({ nullable: true })
+  profilePictureId?: string;
 
   @Column({ unique: true })
   @IsNotEmpty()
+  @MinLength(3)
+  @MaxLength(30)
   username!: string;
 
   @Column({ type: 'text', nullable: true })

@@ -44,7 +44,7 @@ Based on the provided information and industry standards, here are the key featu
 │   ├── config/
 │   │   ├── database.ts
 │   │   ├── redis.ts
-│   │   ├── aws.ts
+│   │   ├── cloudinary.ts
 │   │   └── rabbitmq.ts
 │   ├── controllers/
 │   │   ├── authController.ts
